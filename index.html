@@ -1,580 +1,743 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Smart TV IPTV Dashboard</title>
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-  <style>
-    :root {
-      --bg: #0b0e14;
-      --card-bg: #141a24;
-      --card-active: #1d2636;
-      --accent: #2563eb;
-      --text-main: #f8fafc;
-      --text-muted: #94a3b8;
-      --border: #232d3f;
-      --locked: #ef4444;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIDAA OS Smart IPTV Player</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- HLS.js CDN for live video streaming -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.12/hls.min.js"></script>
+    <!-- FontAwesome for TV Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            background-color: #0d1117;
+            color: #f0f6fc;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
-    body {
-      background-color: var(--bg);
-      color: var(--text-main);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      height: 100vh;
-      width: 100vw;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
+        /* Enhanced focus state for TV Remote D-Pad Navigation */
+        .focusable {
+            transition: all 0.15s ease-in-out;
+            outline: none;
+        }
 
-    #top-bar {
-      height: 60px;
-      background: #0f141d;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 32px;
-    }
-    .brand { font-size: 20px; font-weight: 700; color: #fff; }
-    .brand span { color: var(--accent); }
-    .top-actions { display: flex; gap: 16px; align-items: center; }
-    .status-clock { color: var(--text-muted); font-size: 15px; font-weight: 500; }
+        .focusable.focused {
+            transform: scale(1.03);
+            border-color: #3b82f6 !important;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.6);
+            background-color: #1e293b !important;
+            z-index: 10;
+        }
 
-    #dashboard {
-      flex: 1;
-      display: flex;
-      height: calc(100vh - 60px);
-      position: relative;
-    }
+        /* Custom Scrollbar for TV TV-friendly scrolling */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
 
-    /* Col 1: Categories */
-    #col-categories {
-      width: 260px;
-      background: #111622;
-      border-right: 1px solid var(--border);
-      overflow-y: auto;
-      list-style: none;
-    }
-    /* Col 2: Channels */
-    #col-channels {
-      width: 380px;
-      background: var(--card-bg);
-      border-right: 1px solid var(--border);
-      overflow-y: auto;
-      list-style: none;
-    }
-    /* Col 3: Preview */
-    #col-preview {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      background: #000;
-      position: relative;
-    }
-
-    .nav-item {
-      padding: 16px 20px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      cursor: pointer;
-      color: var(--text-muted);
-    }
-    .nav-item img {
-      width: 32px;
-      height: 32px;
-      border-radius: 4px;
-      object-fit: contain;
-      background: #0b0e14;
-    }
-    .locked-badge {
-      margin-left: auto;
-      background: var(--locked);
-      color: #fff;
-      font-size: 10px;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-weight: 700;
-    }
-
-    .focused {
-      background-color: var(--accent) !important;
-      color: #fff !important;
-      outline: 3px solid #60a5fa;
-      z-index: 5;
-    }
-    .selected {
-      background-color: var(--card-active);
-      color: #fff;
-      font-weight: 600;
-    }
-
-    #video-wrapper {
-      flex: 1;
-      position: relative;
-      background: #000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    video { width: 100%; height: 100%; object-fit: contain; }
-
-    #channel-meta {
-      padding: 24px;
-      background: #0d121b;
-      border-top: 1px solid var(--border);
-      height: 120px;
-    }
-    #meta-title { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
-    #meta-sub { font-size: 14px; color: var(--text-muted); }
-
-    /* Modal dialogs */
-    .modal-overlay {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(8px);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 100;
-    }
-    .dialog-box {
-      background: #19202c;
-      padding: 32px;
-      border-radius: 12px;
-      width: 440px;
-      border: 1px solid var(--border);
-    }
-    .dialog-box h2 { margin-bottom: 16px; text-align: center; }
-    .form-group { margin-bottom: 16px; }
-    .form-group label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
-    .form-group input {
-      width: 100%;
-      padding: 12px;
-      background: #0d1118;
-      border: 1px solid var(--border);
-      color: #fff;
-      border-radius: 6px;
-      font-size: 15px;
-    }
-    .dialog-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; }
-    .btn {
-      padding: 10px 18px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 14px;
-    }
-    .btn-primary { background: var(--accent); color: white; }
-    .btn-secondary { background: #334155; color: white; }
-
-    .fullscreen-mode #col-categories,
-    .fullscreen-mode #col-channels,
-    .fullscreen-mode #top-bar,
-    .fullscreen-mode #channel-meta {
-      display: none !important;
-    }
-    .fullscreen-mode #dashboard { height: 100vh; }
-  </style>
+        /* Aspect ratio container for video preview */
+        .video-container {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 */
+            height: 0;
+            overflow: hidden;
+        }
+        .video-container video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+        }
+    </style>
 </head>
-<body>
+<body class="h-screen w-screen flex flex-col justify-between p-3 gap-3">
 
-  <div id="top-bar">
-    <div class="brand">DUPLE<span>WEB</span></div>
-    <div class="top-actions">
-      <button class="btn btn-secondary" onclick="openPinModal()">Set PIN</button>
-      <button class="btn btn-secondary" onclick="openLogin()">Server Settings</button>
-      <div class="status-clock" id="clock">--:--</div>
+    <!-- Top Action Bar -->
+    <header class="bg-slate-900 border border-slate-800 rounded-xl px-5 py-2.5 flex justify-between items-center shrink-0 shadow-lg">
+        <div class="flex items-center space-x-3">
+            <i class="fa-solid font-bold text-blue-500 text-2xl fa-tv"></i>
+            <h1 class="text-xl font-bold tracking-wide bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+                VIDAA IPTV Player
+            </h1>
+        </div>
+
+        <div class="flex items-center space-x-4">
+            <!-- Account Info -->
+            <button id="btn-login" class="focusable bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center space-x-2 transition border border-transparent">
+                <i class="fa-solid fa-server"></i>
+                <span id="account-status">Connect Account</span>
+            </button>
+
+            <!-- Parental Control Settings -->
+            <button id="btn-pin-settings" class="focusable bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3 py-2 rounded-lg border border-slate-700 flex items-center space-x-1.5">
+                <i class="fa-solid fa-lock text-amber-400"></i>
+                <span>PIN Setup</span>
+            </button>
+
+            <!-- Fullscreen Toggle -->
+            <button id="btn-fullscreen" class="focusable bg-slate-800 hover:bg-slate-700 text-slate-200 p-2 rounded-lg border border-slate-700">
+                <i class="fa-solid fa-expand"></i>
+            </button>
+
+            <!-- Clock -->
+            <div id="clock" class="text-sm font-mono text-slate-400 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
+                00:00:00
+            </div>
+        </div>
+    </header>
+
+    <!-- Main 3-Column Dashboard -->
+    <main class="grid grid-cols-12 gap-3 flex-1 min-h-0">
+        
+        <!-- Column 1: Categories (Width 3/12) -->
+        <section class="col-span-3 bg-slate-900 border border-slate-800 rounded-xl flex flex-col p-3 shadow-md overflow-hidden">
+            <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-2">
+                    <i class="fa-solid fa-layer-group text-blue-400"></i>
+                    <span>Categories</span>
+                </h2>
+                <span id="cat-count" class="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full">0</span>
+            </div>
+            
+            <div id="category-list" class="flex-1 overflow-y-auto space-y-1 pr-1">
+                <div class="text-center py-8 text-slate-500 text-sm">No IPTV playlist loaded. Click "Connect Account" above.</div>
+            </div>
+        </section>
+
+        <!-- Column 2: Channels List (Width 4/12) -->
+        <section class="col-span-4 bg-slate-900 border border-slate-800 rounded-xl flex flex-col p-3 shadow-md overflow-hidden">
+            <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-2">
+                    <i class="fa-solid fa-list-ul text-blue-400"></i>
+                    <span id="selected-category-name">Channels</span>
+                </h2>
+                <span id="channel-count" class="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full">0</span>
+            </div>
+
+            <div id="channel-list" class="flex-1 overflow-y-auto space-y-1.5 pr-1">
+                <div class="text-center py-8 text-slate-500 text-sm">Select a category to view channels.</div>
+            </div>
+        </section>
+
+        <!-- Column 3: Video Preview Player & Meta Details (Width 5/12) -->
+        <section class="col-span-5 bg-slate-900 border border-slate-800 rounded-xl flex flex-col p-3 shadow-md overflow-hidden">
+            <!-- Video Container -->
+            <div class="bg-black rounded-lg border border-slate-800 overflow-hidden shadow-inner relative">
+                <div class="video-container">
+                    <video id="video-player" controls class="w-full h-full"></video>
+                </div>
+            </div>
+
+            <!-- Meta Details -->
+            <div class="mt-3 bg-slate-950 border border-slate-800 rounded-lg p-3 flex-1 flex flex-col justify-between overflow-y-auto">
+                <div>
+                    <div class="flex items-start space-x-3 mb-2">
+                        <img id="meta-icon" src="https://placehold.co/60x60/1e293b/64748b?text=TV" class="w-12 h-12 rounded bg-slate-900 object-contain p-1 border border-slate-800 shrink-0" alt="Channel Icon">
+                        <div>
+                            <h3 id="meta-title" class="font-bold text-base text-slate-100 line-clamp-1">No Channel Selected</h3>
+                            <p id="meta-cat" class="text-xs text-blue-400 font-medium">Please select a channel to preview</p>
+                        </div>
+                    </div>
+
+                    <!-- Connection Status Banner -->
+                    <div id="proxy-status-badge" class="hidden text-xs bg-slate-900 text-slate-400 p-2 rounded border border-slate-800 mb-2">
+                        <i class="fa-solid fa-network-wired text-amber-400 mr-1"></i>
+                        <span id="proxy-status-text">Direct Connection</span>
+                    </div>
+
+                    <div class="text-xs text-slate-400 space-y-1 border-t border-slate-800/60 pt-2">
+                        <p><span class="text-slate-500">Stream URL:</span> <span id="meta-url" class="font-mono text-slate-300 break-all truncate block">N/A</span></p>
+                    </div>
+                </div>
+
+                <!-- Action Controls -->
+                <div class="pt-2 flex gap-2">
+                    <button id="btn-player-fullscreen" class="focusable flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 rounded-lg transition border border-transparent text-center">
+                        <i class="fa-solid fa-expand mr-1.5"></i> Fullscreen Preview
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Xtream Credentials Modal -->
+    <div id="modal-login" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-server text-blue-400"></i> Xtream Codes Login
+                </h2>
+                <button id="btn-close-login" class="focusable text-slate-400 hover:text-white p-1 rounded">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <form id="form-login" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Server URL</label>
+                    <input type="text" id="input-server" placeholder="http://example.com:8080" required class="focusable w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Username</label>
+                    <input type="text" id="input-user" placeholder="Username" required class="focusable w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Password</label>
+                    <input type="password" id="input-pass" placeholder="Password" required class="focusable w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none">
+                </div>
+
+                <div class="pt-2 flex gap-2">
+                    <button type="submit" id="btn-submit-login" class="focusable flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg text-sm transition">
+                        Connect & Load
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
-  </div>
 
-  <div id="dashboard">
-    <ul id="col-categories"></ul>
-    <ul id="col-channels"></ul>
+    <!-- PIN Entry Modal (Parental Controls) -->
+    <div id="modal-pin" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-sm shadow-2xl text-center space-y-4">
+            <div class="w-12 h-12 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mx-auto">
+                <i class="fa-solid fa-lock text-xl"></i>
+            </div>
+            
+            <div>
+                <h3 id="pin-modal-title" class="text-lg font-bold text-slate-100">Restricted Category</h3>
+                <p id="pin-modal-desc" class="text-xs text-slate-400 mt-1">Please enter your 4-digit PIN code to proceed.</p>
+            </div>
 
-    <div id="col-preview">
-      <div id="video-wrapper">
-        <video id="video" autoplay playsinline></video>
-      </div>
-      <div id="channel-meta">
-        <div id="meta-title">Select a Channel</div>
-        <div id="meta-sub">D-pad: Up/Down to Scroll • Right for Fullscreen • Left to Switch Panel</div>
-      </div>
+            <input type="password" id="input-pin" maxlength="4" placeholder="••••" class="focusable text-center text-2xl tracking-widest bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 w-32 mx-auto text-slate-100 focus:outline-none">
+
+            <div class="flex gap-2 pt-2">
+                <button id="btn-pin-cancel" class="focusable flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2 rounded-lg text-xs">
+                    Cancel
+                </button>
+                <button id="btn-pin-submit" class="focusable flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg text-xs">
+                    Unlock
+                </button>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <!-- Xtream Login Modal -->
-  <div id="login-dialog" class="modal-overlay">
-    <div class="dialog-box">
-      <h2>Server Credentials</h2>
-      <div class="form-group">
-        <label>Server URL</label>
-        <input type="text" id="cfg-server" placeholder="http://domain.xyz:8080" />
-      </div>
-      <div class="form-group">
-        <label>Username</label>
-        <input type="text" id="cfg-user" placeholder="Enter username" />
-      </div>
-      <div class="form-group">
-        <label>Password</label>
-        <input type="password" id="cfg-pass" placeholder="Enter password" />
-      </div>
-      <div class="dialog-actions">
-        <button class="btn btn-secondary" onclick="closeLogin()">Cancel</button>
-        <button class="btn btn-primary" onclick="submitLogin()">Save & Connect</button>
-      </div>
-    </div>
-  </div>
+    <script>
+        // --- Application State ---
+        const state = {
+            serverUrl: '',
+            username: '',
+            password: '',
+            categories: {}, // Category Name -> Array of Channels
+            restrictedKeywords: ['adult', 'xxx', '18+', 'nsfw', 'erotic', 'porn', 'erotika', 'sex', 'redlight'],
+            parentalPin: localStorage.getItem('iptv_pin') || '0000',
+            pendingCategory: null,
+            unlockedCategories: new Set(),
+            currentChannel: null,
+            hlsInstance: null,
+            focusedElementIndex: 0,
+            activeColumn: 'categories' // 'topbar', 'categories', 'channels', 'preview'
+        };
 
-  <!-- Parental Control PIN Prompt Modal -->
-  <div id="pin-prompt-dialog" class="modal-overlay">
-    <div class="dialog-box">
-      <h2>Restricted Category</h2>
-      <p style="font-size:14px; color:var(--text-muted); margin-bottom:16px; text-align:center;">Enter your 4-digit PIN to access this section.</p>
-      <div class="form-group">
-        <input type="password" id="input-pin" maxlength="4" placeholder="••••" style="text-align: center; font-size: 24px; letter-spacing: 8px;" />
-      </div>
-      <div class="dialog-actions">
-        <button class="btn btn-secondary" onclick="closePinPrompt()">Cancel</button>
-        <button class="btn btn-primary" onclick="verifyPin()">Unlock</button>
-      </div>
-    </div>
-  </div>
+        // DOM Elements
+        const elements = {
+            loginBtn: document.getElementById('btn-login'),
+            accountStatus: document.getElementById('account-status'),
+            loginModal: document.getElementById('modal-login'),
+            closeLoginBtn: document.getElementById('btn-close-login'),
+            loginForm: document.getElementById('form-login'),
+            inputServer: document.getElementById('input-server'),
+            inputUser: document.getElementById('input-user'),
+            inputPass: document.getElementById('input-pass'),
+            
+            categoryList: document.getElementById('category-list'),
+            channelList: document.getElementById('channel-list'),
+            catCount: document.getElementById('cat-count'),
+            channelCount: document.getElementById('channel-count'),
+            selectedCategoryName: document.getElementById('selected-category-name'),
+            
+            videoPlayer: document.getElementById('video-player'),
+            metaTitle: document.getElementById('meta-title'),
+            metaCat: document.getElementById('meta-cat'),
+            metaUrl: document.getElementById('meta-url'),
+            metaIcon: document.getElementById('meta-icon'),
+            proxyStatusBadge: document.getElementById('proxy-status-badge'),
+            proxyStatusText: document.getElementById('proxy-status-text'),
+            
+            pinModal: document.getElementById('modal-pin'),
+            inputPin: document.getElementById('input-pin'),
+            btnPinSubmit: document.getElementById('btn-pin-submit'),
+            btnPinCancel: document.getElementById('btn-pin-cancel'),
+            btnPinSettings: document.getElementById('btn-pin-settings'),
+            
+            fullscreenBtn: document.getElementById('btn-fullscreen'),
+            playerFullscreenBtn: document.getElementById('btn-player-fullscreen'),
+            clock: document.getElementById('clock')
+        };
 
-  <script>
-    let rawChannels = [];
-    let categories = {};
-    let activeCategory = 'All';
-    let currentChannelList = [];
-    let pendingRestrictedCategory = null;
+        // --- Clock Initialization ---
+        function updateClock() {
+            const now = new Date();
+            elements.clock.textContent = now.toLocaleTimeString();
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
 
-    const restrictedKeywords = ['adult', 'xxx', '18+', 'nsfw', 'for adults', 'erotic'];
-
-    let activeColumn = 1;
-    let catIndex = 0;
-    let chIndex = 0;
-    let isFullscreen = false;
-
-    const video = document.getElementById('video');
-    const catContainer = document.getElementById('col-categories');
-    const chContainer = document.getElementById('col-channels');
-    let hls = null;
-
-    setInterval(() => {
-      const now = new Date();
-      document.getElementById('clock').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }, 1000);
-
-    window.addEventListener('DOMContentLoaded', () => {
-      if (!localStorage.getItem('parental_pin')) {
-        localStorage.setItem('parental_pin', '0000');
-      }
-
-      const s = localStorage.getItem('xc_server');
-      const u = localStorage.getItem('xc_user');
-      const p = localStorage.getItem('xc_pass');
-
-      if (s && u && p) {
-        loadData(s, u, p);
-      } else {
-        openLogin();
-      }
-    });
-
-    function openLogin() {
-      document.getElementById('cfg-server').value = localStorage.getItem('xc_server') || '';
-      document.getElementById('cfg-user').value = localStorage.getItem('xc_user') || '';
-      document.getElementById('cfg-pass').value = localStorage.getItem('xc_pass') || '';
-      document.getElementById('login-dialog').style.display = 'flex';
-    }
-    function closeLogin() { document.getElementById('login-dialog').style.display = 'none'; }
-
-    function openPinModal() {
-      const current = localStorage.getItem('parental_pin') || '0000';
-      const nextPin = prompt("Enter a new 4-digit parental control PIN:", current);
-      if (nextPin && nextPin.length === 4 && !isNaN(nextPin)) {
-        localStorage.setItem('parental_pin', nextPin);
-        alert("Parental PIN updated successfully.");
-      } else if (nextPin) {
-        alert("PIN must be exactly 4 digits.");
-      }
-    }
-
-    function submitLogin() {
-      const s = document.getElementById('cfg-server').value.trim().replace(/\/$/, "");
-      const u = document.getElementById('cfg-user').value.trim();
-      const p = document.getElementById('cfg-pass').value.trim();
-      if (!s || !u || !p) return;
-
-      localStorage.setItem('xc_server', s);
-      localStorage.setItem('xc_user', u);
-      localStorage.setItem('xc_pass', p);
-      closeLogin();
-      loadData(s, u, p);
-    }
-
-    async function loadData(s, u, p) {
-      document.getElementById('meta-title').textContent = "Connecting via Proxy...";
-      
-      const rawM3uUrl = `${s}/get.php?username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&type=m3u_plus&output=m3u8`;
-      
-      // Pass the request through corsproxy.io to bypass browser CORS origin blocks
-      const proxiedUrl = `https://corsproxy.io/?${encodeURIComponent(rawM3uUrl)}`;
-
-      try {
-        const res = await fetch(proxiedUrl);
-        if (!res.ok) throw new Error("Network response was not ok");
-        const text = await res.text();
-        parseM3UData(text);
-      } catch (e) {
-        document.getElementById('meta-title').textContent = "Connection Failed";
-        document.getElementById('meta-sub').textContent = "CORS bypass failed or Xtream credentials incorrect.";
-      }
-    }
-
-    function isCategoryRestricted(name) {
-      const lower = name.toLowerCase();
-      return restrictedKeywords.some(keyword => lower.includes(keyword));
-    }
-
-    function parseM3UData(data) {
-      const lines = data.split('\n');
-      rawChannels = [];
-      categories = { 'All': [] };
-
-      let temp = {};
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (line.startsWith('#EXTINF:')) {
-          const groupMatch = line.match(/group-title="([^"]+)"/);
-          const group = groupMatch ? groupMatch[1] : 'General';
-
-          const logoMatch = line.match(/tvg-logo="([^"]+)"/);
-          const logo = logoMatch ? logoMatch[1] : '';
-
-          const name = line.split(',')[1] || 'Unknown';
-          temp = { name: name.trim(), group, logo };
-        } else if (line && !line.startsWith('#')) {
-          temp.url = line;
-          if (temp.name) {
-            rawChannels.push(temp);
-            if (!categories[temp.group]) categories[temp.group] = [];
-            categories[temp.group].push(temp);
-            if (!isCategoryRestricted(temp.group)) {
-              categories['All'].push(temp);
+        // --- LocalStorage Restoration ---
+        function loadSavedCredentials() {
+            const saved = localStorage.getItem('iptv_credentials');
+            if (saved) {
+                try {
+                    const creds = JSON.parse(saved);
+                    state.serverUrl = creds.serverUrl;
+                    state.username = creds.username;
+                    state.password = creds.password;
+                    
+                    elements.inputServer.value = state.serverUrl;
+                    elements.inputUser.value = state.username;
+                    elements.inputPass.value = state.password;
+                    elements.accountStatus.textContent = "Connected (" + state.username + ")";
+                    
+                    fetchPlaylist();
+                } catch(e) {
+                    console.error("Failed to parse saved credentials", e);
+                }
             }
-          }
-          temp = {};
         }
-      }
 
-      renderCategories();
-      selectCategory('All');
-    }
+        // --- Multi-Proxy Resilient Fetch Strategy ---
+        async function fetchWithProxyFallback(targetUrl) {
+            // Proxies fallback list
+            const proxies = [
+                // 1. Direct fetch
+                (url) => url,
+                // 2. Corsproxy.io
+                (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+                // 3. Allorigins.win
+                (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+            ];
 
-    function renderCategories() {
-      catContainer.innerHTML = '';
-      const catKeys = Object.keys(categories);
-      catKeys.forEach((cat, idx) => {
-        const li = document.createElement('li');
-        li.className = 'nav-item' + (cat === activeCategory ? ' selected' : '');
-        li.id = `cat-${idx}`;
+            let lastError = null;
 
-        const isLocked = isCategoryRestricted(cat);
-        li.innerHTML = `<span>${cat} (${categories[cat].length})</span>` + (isLocked ? `<span class="locked-badge">LOCKED</span>` : '');
+            for (let i = 0; i < proxies.length; i++) {
+                const proxiedUrl = proxies[i](targetUrl);
+                try {
+                    console.log(`Attempting fetch with strategy #${i + 1}`);
+                    const response = await fetch(proxiedUrl);
+                    if (response.ok) {
+                        const text = await response.text();
+                        if (text && text.length > 50) { // Valid non-empty payload check
+                            elements.proxyStatusBadge.classList.remove('hidden');
+                            elements.proxyStatusText.textContent = i === 0 ? "Direct Stream Connection" : `Proxied via Strategy #${i}`;
+                            return text;
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`Proxy strategy #${i + 1} failed:`, err);
+                    lastError = err;
+                }
+            }
 
-        li.onclick = () => handleCategorySelection(cat);
-        catContainer.appendChild(li);
-      });
-    }
-
-    function handleCategorySelection(cat) {
-      if (isCategoryRestricted(cat)) {
-        pendingRestrictedCategory = cat;
-        document.getElementById('input-pin').value = '';
-        document.getElementById('pin-prompt-dialog').style.display = 'flex';
-      } else {
-        selectCategory(cat);
-        activeColumn = 1;
-        updateFocus();
-      }
-    }
-
-    function closePinPrompt() {
-      document.getElementById('pin-prompt-dialog').style.display = 'none';
-      pendingRestrictedCategory = null;
-    }
-
-    function verifyPin() {
-      const entered = document.getElementById('input-pin').value;
-      const expected = localStorage.getItem('parental_pin') || '0000';
-
-      if (entered === expected) {
-        const target = pendingRestrictedCategory;
-        closePinPrompt();
-        selectCategory(target);
-        activeColumn = 1;
-        updateFocus();
-      } else {
-        alert("Incorrect PIN.");
-        document.getElementById('input-pin').value = '';
-      }
-    }
-
-    function selectCategory(cat) {
-      activeCategory = cat;
-      currentChannelList = categories[cat] || [];
-      chIndex = 0;
-      renderChannels();
-    }
-
-    function renderChannels() {
-      chContainer.innerHTML = '';
-      currentChannelList.forEach((ch, idx) => {
-        const li = document.createElement('li');
-        li.className = 'nav-item';
-        li.id = `ch-${idx}`;
-
-        const img = document.createElement('img');
-        img.src = ch.logo || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="%23666"><rect width="24" height="24" rx="4"/></svg>';
-        img.onerror = () => { img.style.display = 'none'; };
-
-        const span = document.createElement('span');
-        span.textContent = ch.name;
-
-        li.appendChild(img);
-        li.appendChild(span);
-        li.onclick = () => { playChannel(idx); };
-        chContainer.appendChild(li);
-      });
-      updateFocus();
-    }
-
-    function playChannel(idx) {
-      const ch = currentChannelList[idx];
-      if (!ch) return;
-
-      document.getElementById('meta-title').textContent = ch.name;
-      document.getElementById('meta-sub').textContent = ch.group;
-
-      // Stream proxy wrapper if video stream URL is plain http on an https app
-      let streamUrl = ch.url;
-      if (window.location.protocol === 'https:' && streamUrl.startsWith('http:')) {
-        streamUrl = `https://corsproxy.io/?${encodeURIComponent(streamUrl)}`;
-      }
-
-      if (Hls.isSupported()) {
-        if (hls) hls.destroy();
-        hls = new Hls();
-        hls.loadSource(streamUrl);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = streamUrl;
-        video.play();
-      }
-    }
-
-    function updateFocus() {
-      document.querySelectorAll('.focused').forEach(el => el.classList.remove('focused'));
-
-      if (activeColumn === 0) {
-        const el = document.getElementById(`cat-${catIndex}`);
-        if (el) {
-          el.classList.add('focused');
-          el.scrollIntoView({ block: 'nearest' });
+            throw lastError || new Error("All connection proxies failed.");
         }
-      } else if (activeColumn === 1) {
-        const el = document.getElementById(`ch-${chIndex}`);
-        if (el) {
-          el.classList.add('focused');
-          el.scrollIntoView({ block: 'nearest' });
+
+        // Construct Xtream M3U Plus URL
+        function getXtreamM3UUrl() {
+            let cleanServer = state.serverUrl.trim().replace(/\/+$/, "");
+            return `${cleanServer}/get.php?username=${encodeURIComponent(state.username)}&password=${encodeURIComponent(state.password)}&type=m3u_plus&output=m3u8`;
         }
-      }
-    }
 
-    function toggleFullscreen() {
-      isFullscreen = !isFullscreen;
-      if (isFullscreen) {
-        document.body.classList.add('fullscreen-mode');
-      } else {
-        document.body.classList.remove('fullscreen-mode');
-      }
-    }
+        async function fetchPlaylist() {
+            elements.categoryList.innerHTML = `<div class="text-center py-8 text-blue-400 text-sm"><i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i><br>Connecting to IPTV Server...</div>`;
+            elements.channelList.innerHTML = `<div class="text-center py-8 text-slate-500 text-sm">Waiting for playlist...</div>`;
 
-    // Remote D-Pad Navigation
-    window.addEventListener('keydown', (e) => {
-      if (document.getElementById('login-dialog').style.display === 'flex' ||
-          document.getElementById('pin-prompt-dialog').style.display === 'flex') {
-        if (e.keyCode === 13 && document.getElementById('pin-prompt-dialog').style.display === 'flex') {
-          verifyPin();
+            try {
+                const m3uUrl = getXtreamM3UUrl();
+                const m3uContent = await fetchWithProxyFallback(m3uUrl);
+                parseM3UPlaylist(m3uContent);
+            } catch (error) {
+                console.error("Playlist Loading Error:", error);
+                elements.categoryList.innerHTML = `
+                    <div class="text-center py-6 text-red-400 text-xs px-2">
+                        <i class="fa-solid fa-triangle-exclamation text-2xl mb-2"></i><br>
+                        Failed to connect.<br>Check credentials or URL protocol (HTTP vs HTTPS).
+                    </div>`;
+            }
         }
-        return;
-      }
 
-      switch(e.keyCode) {
-        case 38: // UP
-          if (activeColumn === 0 && catIndex > 0) {
-            catIndex--;
-            updateFocus();
-          } else if (activeColumn === 1 && chIndex > 0) {
-            chIndex--;
-            updateFocus();
-          }
-          break;
+        // Parser for M3U / M3U Plus Format
+        function parseM3UPlaylist(data) {
+            const lines = data.split('\n');
+            state.categories = {};
 
-        case 40: // DOWN
-          const totalCats = Object.keys(categories).length;
-          if (activeColumn === 0 && catIndex < totalCats - 1) {
-            catIndex++;
-            updateFocus();
-          } else if (activeColumn === 1 && chIndex < currentChannelList.length - 1) {
-            chIndex++;
-            updateFocus();
-          }
-          break;
+            let currentChannel = null;
 
-        case 37: // LEFT
-          if (isFullscreen) {
-            toggleFullscreen();
-          } else if (activeColumn === 1) {
-            activeColumn = 0;
-            updateFocus();
-          }
-          break;
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                
+                if (line.startsWith('#EXTINF:')) {
+                    currentChannel = {};
+                    
+                    // Parse group-title / Category
+                    const groupMatch = line.match(/group-title="([^"]+)"/i);
+                    currentChannel.category = groupMatch ? groupMatch[1] : 'Uncategorized';
+                    
+                    // Parse tvg-logo
+                    const logoMatch = line.match(/tvg-logo="([^"]+)"/i);
+                    currentChannel.logo = logoMatch ? logoMatch[1] : '';
 
-        case 39: // RIGHT
-          if (activeColumn === 0) {
-            const catKey = Object.keys(categories)[catIndex];
-            handleCategorySelection(catKey);
-          } else if (activeColumn === 1) {
-            toggleFullscreen();
-          }
-          break;
+                    // Parse channel name
+                    const nameParts = line.split(',');
+                    currentChannel.name = nameParts.length > 1 ? nameParts.slice(1).join(',').trim() : 'Unknown Channel';
 
-        case 13: // OK / ENTER
-          if (activeColumn === 0) {
-            const catKey = Object.keys(categories)[catIndex];
-            handleCategorySelection(catKey);
-          } else if (activeColumn === 1) {
-            playChannel(chIndex);
-          }
-          break;
+                } else if (line.length > 0 && !line.startsWith('#')) {
+                    if (currentChannel) {
+                        currentChannel.url = line;
 
-        case 10009: // Return / Back
-        case 27:
-          if (isFullscreen) {
-            toggleFullscreen();
-          }
-          break;
-      }
-    });
-  </script>
+                        // Organize into category maps
+                        const cat = currentChannel.category;
+                        if (!state.categories[cat]) {
+                            state.categories[cat] = [];
+                        }
+                        state.categories[cat].push(currentChannel);
+                        currentChannel = null;
+                    }
+                }
+            }
+
+            renderCategories();
+        }
+
+        function isRestrictedCategory(categoryName) {
+            const lower = categoryName.toLowerCase();
+            return state.restrictedKeywords.some(keyword => lower.includes(keyword));
+        }
+
+        function renderCategories() {
+            elements.categoryList.innerHTML = '';
+            const categories = Object.keys(state.categories);
+            elements.catCount.textContent = categories.length;
+
+            if (categories.length === 0) {
+                elements.categoryList.innerHTML = `<div class="text-center py-8 text-slate-500 text-sm">No valid categories found.</div>`;
+                return;
+            }
+
+            categories.forEach((catName, index) => {
+                const isRestricted = isRestrictedCategory(catName);
+                const count = state.categories[catName].length;
+
+                const btn = document.createElement('button');
+                btn.className = `focusable w-full text-left px-3 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-between border border-slate-800 bg-slate-950/60 hover:bg-slate-800 transition`;
+                btn.setAttribute('data-category', catName);
+                
+                btn.innerHTML = `
+                    <div class="flex items-center space-x-2 truncate">
+                        ${isRestricted ? '<i class="fa-solid fa-lock text-amber-400 shrink-0"></i>' : '<i class="fa-solid fa-folder text-blue-400 shrink-0"></i>'}
+                        <span class="truncate ${isRestricted ? 'text-amber-200' : 'text-slate-200'}">${catName}</span>
+                    </div>
+                    <span class="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-full shrink-0 ml-1">${count}</span>
+                `;
+
+                btn.addEventListener('click', () => handleCategoryClick(catName));
+                elements.categoryList.appendChild(btn);
+            });
+
+            // Re-apply focus setup
+            refreshFocusables();
+        }
+
+        function handleCategoryClick(categoryName) {
+            if (isRestrictedCategory(categoryName) && !state.unlockedCategories.has(categoryName)) {
+                state.pendingCategory = categoryName;
+                showPinModal();
+            } else {
+                renderChannels(categoryName);
+            }
+        }
+
+        function renderChannels(categoryName) {
+            elements.selectedCategoryName.textContent = categoryName;
+            elements.channelList.innerHTML = '';
+
+            const channels = state.categories[categoryName] || [];
+            elements.channelCount.textContent = channels.length;
+
+            channels.forEach((channel) => {
+                const item = document.createElement('button');
+                item.className = `focusable w-full text-left p-2 rounded-lg text-xs font-semibold flex items-center space-x-2.5 border border-slate-800 bg-slate-950/40 hover:bg-slate-800 transition`;
+                
+                const fallbackLogo = `https://placehold.co/40x40/1e293b/64748b?text=TV`;
+                const logoUrl = channel.logo || fallbackLogo;
+
+                item.innerHTML = `
+                    <img src="${logoUrl}" onerror="this.src='${fallbackLogo}'" class="w-8 h-8 rounded bg-slate-900 object-contain p-0.5 border border-slate-800 shrink-0">
+                    <span class="truncate text-slate-200 flex-1">${channel.name}</span>
+                    <i class="fa-solid fa-play text-[10px] text-slate-600"></i>
+                `;
+
+                item.addEventListener('click', () => playChannel(channel));
+                elements.channelList.appendChild(item);
+            });
+
+            refreshFocusables();
+        }
+
+        function playChannel(channel) {
+            state.currentChannel = channel;
+            
+            elements.metaTitle.textContent = channel.name;
+            elements.metaCat.textContent = channel.category;
+            elements.metaUrl.textContent = channel.url;
+            elements.metaIcon.src = channel.logo || `https://placehold.co/60x60/1e293b/64748b?text=TV`;
+
+            let streamUrl = channel.url;
+
+            // Handle mixed content proxying if page is HTTPS and stream is HTTP
+            if (window.location.protocol === 'https:' && streamUrl.startsWith('http:')) {
+                streamUrl = `https://corsproxy.io/?${encodeURIComponent(streamUrl)}`;
+            }
+
+            if (Hls.isSupported()) {
+                if (state.hlsInstance) {
+                    state.hlsInstance.destroy();
+                }
+                state.hlsInstance = new Hls({
+                    enableWorker: true,
+                    lowLatencyMode: true
+                });
+                state.hlsInstance.loadSource(streamUrl);
+                state.hlsInstance.attachMedia(elements.videoPlayer);
+                state.hlsInstance.on(Hls.Events.MANIFEST_PARSED, function() {
+                    elements.videoPlayer.play().catch(e => console.warn("Auto-play blocked:", e));
+                });
+            } else if (elements.videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+                // Native HLS support (Safari/iOS/Certain TV Browsers)
+                elements.videoPlayer.src = streamUrl;
+                elements.videoPlayer.play();
+            }
+        }
+
+        function showPinModal() {
+            elements.pinModal.classList.remove('hidden');
+            elements.pinModal.classList.add('flex');
+            elements.inputPin.value = '';
+            elements.inputPin.focus();
+            refreshFocusables();
+        }
+
+        function hidePinModal() {
+            elements.pinModal.classList.add('hidden');
+            elements.pinModal.classList.remove('flex');
+            refreshFocusables();
+        }
+
+        elements.btnPinSubmit.addEventListener('click', () => {
+            const enteredPin = elements.inputPin.value;
+            if (enteredPin === state.parentalPin) {
+                if (state.pendingCategory) {
+                    state.unlockedCategories.add(state.pendingCategory);
+                    renderChannels(state.pendingCategory);
+                    state.pendingCategory = null;
+                }
+                hidePinModal();
+            } else {
+                alert("Incorrect PIN code.");
+                elements.inputPin.value = '';
+            }
+        });
+
+        elements.btnPinCancel.addEventListener('click', () => {
+            state.pendingCategory = null;
+            hidePinModal();
+        });
+
+        elements.btnPinSettings.addEventListener('click', () => {
+            const current = prompt("Enter current PIN code:", "");
+            if (current === state.parentalPin) {
+                const newPin = prompt("Enter new 4-digit PIN code:", "");
+                if (newPin && newPin.length === 4 && !isNaN(newPin)) {
+                    state.parentalPin = newPin;
+                    localStorage.setItem('iptv_pin', newPin);
+                    alert("PIN updated successfully.");
+                } else {
+                    alert("Invalid PIN format. Must be 4 digits.");
+                }
+            } else if (current !== null) {
+                alert("Incorrect current PIN.");
+            }
+        });
+
+        elements.loginBtn.addEventListener('click', () => {
+            elements.loginModal.classList.remove('hidden');
+            elements.loginModal.classList.add('flex');
+            refreshFocusables();
+        });
+
+        elements.closeLoginBtn.addEventListener('click', () => {
+            elements.loginModal.classList.add('hidden');
+            elements.loginModal.classList.remove('flex');
+            refreshFocusables();
+        });
+
+        elements.loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            state.serverUrl = elements.inputServer.value.trim();
+            state.username = elements.inputUser.value.trim();
+            state.password = elements.inputPass.value.trim();
+
+            localStorage.setItem('iptv_credentials', JSON.stringify({
+                serverUrl: state.serverUrl,
+                username: state.username,
+                password: state.password
+            }));
+
+            elements.accountStatus.textContent = "Connected (" + state.username + ")";
+            elements.loginModal.classList.add('hidden');
+            elements.loginModal.classList.remove('flex');
+
+            fetchPlaylist();
+        });
+
+        // Fullscreen Controls
+        elements.fullscreenBtn.addEventListener('click', toggleFullScreen);
+        elements.playerFullscreenBtn.addEventListener('click', () => {
+            if (elements.videoPlayer.requestFullscreen) {
+                elements.videoPlayer.requestFullscreen();
+            } else if (elements.videoPlayer.webkitRequestFullscreen) {
+                elements.videoPlayer.webkitRequestFullscreen();
+            }
+        });
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => console.log(err));
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        let focusableElements = [];
+
+        function refreshFocusables() {
+            // Find all visible interactive elements
+            focusableElements = Array.from(document.querySelectorAll('.focusable:not([hidden]):not(.hidden)'));
+            if (focusableElements.length > 0 && !document.querySelector('.focusable.focused')) {
+                setFocus(0);
+            }
+        }
+
+        function setFocus(index) {
+            focusableElements.forEach(el => el.classList.remove('focused'));
+            if (focusableElements[index]) {
+                state.focusedElementIndex = index;
+                focusableElements[index].classList.add('focused');
+                focusableElements[index].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                
+                if (focusableElements[index].tagName === 'INPUT') {
+                    focusableElements[index].focus();
+                }
+            }
+        }
+
+        // D-Pad Directional Keycodes for Smart TVs (VIDAA, Tizen, WebOS, Android TV)
+        window.addEventListener('keydown', (e) => {
+            const keyCode = e.keyCode;
+            
+            // Keycode mappings
+            const KEYS = {
+                UP: 38,
+                DOWN: 40,
+                LEFT: 37,
+                RIGHT: 39,
+                ENTER: 13,
+                BACK: 27,
+                TV_BACK: 10009
+            };
+
+            refreshFocusables();
+            if (focusableElements.length === 0) return;
+
+            let currentIdx = state.focusedElementIndex;
+
+            switch (keyCode) {
+                case KEYS.UP:
+                    e.preventDefault();
+                    if (currentIdx > 0) setFocus(currentIdx - 1);
+                    break;
+
+                case KEYS.DOWN:
+                    e.preventDefault();
+                    if (currentIdx < focusableElements.length - 1) setFocus(currentIdx + 1);
+                    break;
+
+                case KEYS.LEFT:
+                case KEYS.RIGHT:
+                    // Navigate across panels/columns using spatial awareness
+                    e.preventDefault();
+                    const currentElem = focusableElements[currentIdx];
+                    const rect = currentElem.getBoundingClientRect();
+                    
+                    let bestCandidateIdx = -1;
+                    let minDistance = Infinity;
+
+                    focusableElements.forEach((el, idx) => {
+                        if (idx === currentIdx) return;
+                        const r = el.getBoundingClientRect();
+
+                        // Check horizontal alignment
+                        if (keyCode === KEYS.RIGHT && r.left > rect.right) {
+                            const dist = Math.hypot(r.left - rect.right, r.top - rect.top);
+                            if (dist < minDistance) { minDistance = dist; bestCandidateIdx = idx; }
+                        } else if (keyCode === KEYS.LEFT && r.right < rect.left) {
+                            const dist = Math.hypot(rect.left - r.right, r.top - rect.top);
+                            if (dist < minDistance) { minDistance = dist; bestCandidateIdx = idx; }
+                        }
+                    });
+
+                    if (bestCandidateIdx !== -1) setFocus(bestCandidateIdx);
+                    break;
+
+                case KEYS.ENTER:
+                    if (focusableElements[currentIdx]) {
+                        focusableElements[currentIdx].click();
+                    }
+                    break;
+
+                case KEYS.BACK:
+                case KEYS.TV_BACK:
+                    e.preventDefault();
+                    if (!elements.loginModal.classList.contains('hidden')) {
+                        hidePinModal();
+                        elements.loginModal.classList.add('hidden');
+                    } else if (!elements.pinModal.classList.contains('hidden')) {
+                        hidePinModal();
+                    }
+                    break;
+            }
+        });
+
+        // Initialize on Load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadSavedCredentials();
+            refreshFocusables();
+        });
+    </script>
 </body>
 </html>
