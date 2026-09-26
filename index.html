@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VIDAA Ultra Fast IPTV Player</title>
+  <title>VIDAA Smart TV IPTV Player</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <style>
     :root {
       --bg: #090c10;
@@ -28,7 +29,7 @@
       display: flex; flex-direction: column;
     }
 
-    /* Top Bar */
+    /* Top Bar Header */
     #header {
       height: 54px;
       background: #0d111a;
@@ -45,7 +46,7 @@
 
     .header-info { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text-dim); }
 
-    /* Dashboard Layout */
+    /* Main Dashboard */
     #dashboard { flex: 1; display: flex; height: calc(100vh - 54px); }
 
     #col-cats { width: 280px; background: var(--panel-bg); border-right: 1px solid var(--border); overflow-y: auto; list-style: none; }
@@ -60,12 +61,11 @@
     }
     .list-item img { width: 28px; height: 28px; object-fit: contain; border-radius: 4px; background: #000; }
     .list-item .title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .badge { background: var(--danger); color: #fff; font-size: 9px; padding: 2px 5px; border-radius: 3px; font-weight: 800; }
 
     .focused { background-color: var(--accent) !important; color: #fff !important; outline: 2px solid #60a5fa; z-index: 10; }
     .selected { background-color: var(--card-hover); color: #fff; font-weight: 600; }
 
-    /* Inline Preview Window */
+    /* Inline Preview */
     #preview-player-box { flex: 1; position: relative; background: #000; display: flex; align-items: center; justify-content: center; }
     #preview-video { width: 100%; height: 100%; object-fit: contain; }
 
@@ -73,7 +73,7 @@
     #meta-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
     #meta-sub { font-size: 12px; color: var(--text-dim); }
 
-    /* Fullscreen Player Modal Overlay */
+    /* Fullscreen Player Overlay */
     #player-overlay {
       position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
       background: #000; z-index: 999; display: none; flex-direction: column;
@@ -83,14 +83,13 @@
       position: absolute; bottom: 0; left: 0; right: 0;
       background: linear-gradient(transparent, rgba(0,0,0,0.9));
       padding: 30px; display: flex; justify-content: space-between; align-items: flex-end;
-      transition: opacity 0.3s ease;
     }
     .osd-title { font-size: 24px; font-weight: 800; color: #fff; }
     .osd-status { font-size: 14px; color: var(--accent-bright); font-weight: 700; margin-top: 4px; }
     .osd-hint { font-size: 12px; color: var(--text-dim); }
 
-    /* Modal Dialogs */
-    .modal { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 1000; display: none; align-items: center; justify-content: center; }
+    /* Settings Modal */
+    .modal { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 1000; display: none; align-items: center; justify-content: center; }
     .dialog { background: #18202c; padding: 24px; border-radius: 10px; width: 400px; border: 1px solid var(--border); }
     .dialog h3 { margin-bottom: 12px; }
     .dialog input { width: 100%; padding: 10px; margin-bottom: 12px; background: #0a0d14; border: 1px solid var(--border); color: #fff; border-radius: 6px; }
@@ -102,9 +101,8 @@
 </head>
 <body>
 
-  <!-- Top Bar Nav -->
   <div id="header">
-    <div class="brand">VIDAA<span>FAST</span></div>
+    <div class="brand">VIDAA<span>PLAYER</span></div>
     <div class="nav-tabs">
       <div class="tab active" id="tab-live" onclick="switchSection('live')">CHANNELS</div>
       <div class="tab" id="tab-vod" onclick="switchSection('vod')">MOVIES</div>
@@ -117,7 +115,6 @@
     </div>
   </div>
 
-  <!-- Content Dashboard -->
   <div id="dashboard">
     <ul id="col-cats"></ul>
     <ul id="col-items"></ul>
@@ -127,8 +124,8 @@
         <video id="preview-video" autoplay muted playsinline></video>
       </div>
       <div id="meta-panel">
-        <div id="meta-title">Select Channel</div>
-        <div id="meta-sub">Press OK or RIGHT to open Native Fullscreen Player</div>
+        <div id="meta-title">Select Content</div>
+        <div id="meta-sub">Press OK or RIGHT to open Fullscreen Player</div>
       </div>
     </div>
   </div>
@@ -139,9 +136,9 @@
     <div id="player-osd">
       <div>
         <div class="osd-title" id="full-title">Channel Name</div>
-        <div class="osd-status" id="full-status">LIVE PLAYBACK</div>
+        <div class="osd-status" id="full-status">CONNECTING STREAM...</div>
       </div>
-      <div class="osd-hint">Press [BACK/ESC] to Exit Fullscreen</div>
+      <div class="osd-hint">Press [BACK / ESC] to Exit Fullscreen</div>
     </div>
   </div>
 
@@ -165,7 +162,7 @@
     let categoryList = [];
     let currentItemList = [];
 
-    // Focus State Matrix: -1 = Tabs, 0 = Categories, 1 = Channels/Items, 2 = Fullscreen Overlay
+    // Focus state: -1 = Tabs, 0 = Categories, 1 = Items, 2 = Fullscreen
     let focusCol = 0;
     let tabIdx = 0;
     let catIdx = 0;
@@ -174,6 +171,8 @@
     const tabs = ['live', 'vod', 'series', 'radio'];
     const pVideo = document.getElementById('preview-video');
     const fVideo = document.getElementById('full-video');
+    let previewHls = null;
+    let fullHls = null;
 
     setInterval(() => {
       document.getElementById('clock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -220,10 +219,14 @@
         const res = await fetch(url);
         if (res.ok) return await res.json();
       } catch (e) {
-        // Fallback CORS Proxy
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-        const res = await fetch(proxyUrl);
-        if (res.ok) return await res.json();
+        // Proxy Fallback for API calls
+        try {
+          const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+          const res = await fetch(proxyUrl);
+          if (res.ok) return await res.json();
+        } catch (err) {
+          console.warn("Fetch failed:", url);
+        }
       }
       return null;
     }
@@ -278,7 +281,7 @@
       const cat = categoryList[cIdx];
       if (!cat) return;
 
-      document.getElementById('col-items').innerHTML = '<li class="list-item"><span class="title">Loading channels...</span></li>';
+      document.getElementById('col-items').innerHTML = '<li class="list-item"><span class="title">Loading...</span></li>';
 
       let action = 'get_live_streams';
       if (currentSection === 'vod') action = 'get_vod_streams';
@@ -318,40 +321,92 @@
       updateFocus();
     }
 
-    function getDirectStreamUrl(item) {
-      if (currentSection === 'vod') {
-        const ext = item.container_extension || 'mp4';
-        return `${serverUrl}/movie/${encodeURIComponent(username)}/${encodeURIComponent(password)}/${item.stream_id}.${ext}`;
-      } else {
-        // Native MPEG-TS / HLS direct video path for ultra-fast VIDAA load
-        return `${serverUrl}/live/${encodeURIComponent(username)}/${encodeURIComponent(password)}/${item.stream_id}.ts`;
-      }
-    }
-
+    // Dynamic Stream Loader Engine with Mixed Content / Proxy Handling
     function playStream(fullScreen = false) {
       const item = currentItemList[itemIdx];
       if (!item) return;
 
-      const streamUrl = getDirectStreamUrl(item);
       const title = item.name || item.title;
-
       document.getElementById('meta-title').textContent = title;
       document.getElementById('meta-sub').textContent = `Stream ID: ${item.stream_id || item.series_id}`;
+
+      let m3u8Url = '', tsUrl = '', vodUrl = '';
+
+      if (currentSection === 'vod') {
+        const ext = item.container_extension || 'mp4';
+        vodUrl = `${serverUrl}/movie/${encodeURIComponent(username)}/${encodeURIComponent(password)}/${item.stream_id}.${ext}`;
+      } else {
+        m3u8Url = `${serverUrl}/live/${encodeURIComponent(username)}/${encodeURIComponent(password)}/${item.stream_id}.m3u8`;
+        tsUrl = `${serverUrl}/live/${encodeURIComponent(username)}/${encodeURIComponent(password)}/${item.stream_id}.ts`;
+      }
+
+      const targetVideo = fullScreen ? fVideo : pVideo;
+      let activeHls = fullScreen ? fullHls : previewHls;
 
       if (fullScreen) {
         focusCol = 2;
         document.getElementById('full-title').textContent = title;
+        document.getElementById('full-status').textContent = 'CONNECTING STREAM...';
         document.getElementById('player-overlay').style.display = 'flex';
-        fVideo.src = streamUrl;
-        fVideo.play().catch(e => console.log("Fullscreen Play Error:", e));
+      }
+
+      if (activeHls) activeHls.destroy();
+
+      if (currentSection === 'vod') {
+        targetVideo.src = vodUrl;
+        targetVideo.play().catch(e => console.log("VOD playback error:", e));
+        return;
+      }
+
+      // HLS setup with automatic proxying for HTTP chunks on HTTPS page
+      if (Hls.isSupported()) {
+        activeHls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          xhrSetup: function (xhr, url) {
+            // Route http segments via proxy if current page is https
+            if (window.location.protocol === 'https:' && url.startsWith('http:')) {
+              xhr.open('GET', `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, true);
+            }
+          }
+        });
+
+        let playSource = m3u8Url;
+        if (window.location.protocol === 'https:' && playSource.startsWith('http:')) {
+          playSource = `https://api.allorigins.win/raw?url=${encodeURIComponent(playSource)}`;
+        }
+
+        activeHls.loadSource(playSource);
+        activeHls.attachMedia(targetVideo);
+
+        activeHls.on(Hls.Events.MANIFEST_PARSED, () => {
+          if (fullScreen) document.getElementById('full-status').textContent = 'LIVE PLAYBACK';
+          targetVideo.play().catch(e => console.log("HLS play error:", e));
+        });
+
+        activeHls.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            console.warn("HLS fatal error. Attempting TS stream fallback...");
+            if (activeHls) activeHls.destroy();
+            targetVideo.src = tsUrl;
+            targetVideo.play().catch(err => console.log("TS Direct Play error:", err));
+          }
+        });
+
+        if (fullScreen) fullHls = activeHls; else previewHls = activeHls;
+
+      } else if (targetVideo.canPlayType('application/vnd.apple.mpegurl')) {
+        targetVideo.src = m3u8Url;
+        targetVideo.play();
       } else {
-        pVideo.src = streamUrl;
-        pVideo.play().catch(e => console.log("Preview Play Error:", e));
+        targetVideo.src = tsUrl;
+        targetVideo.play();
       }
     }
 
     function closeFullscreen() {
       focusCol = 1;
+      if (fullHls) { fullHls.destroy(); fullHls = null; }
       fVideo.pause();
       fVideo.src = '';
       document.getElementById('player-overlay').style.display = 'none';
@@ -373,11 +428,11 @@
       }
     }
 
-    // VIDAA Remote Key Handling
+    // VIDAA TV D-Pad Remote Navigation
     window.addEventListener('keydown', (e) => {
       if (document.getElementById('login-modal').style.display === 'flex') return;
 
-      if (focusCol === 2) { // Fullscreen Overlay Mode
+      if (focusCol === 2) { // Fullscreen Player Controls
         if (e.keyCode === 27 || e.keyCode === 10009 || e.keyCode === 8) { // BACK / ESC
           closeFullscreen();
         }
@@ -405,13 +460,13 @@
         case 39: // RIGHT
           if (focusCol === -1 && tabIdx < tabs.length - 1) { switchSection(tabs[tabIdx + 1]); }
           else if (focusCol === 0) { focusCol = 1; loadItems(catIdx); }
-          else if (focusCol === 1) { playStream(true); } // Launch Fullscreen Player
+          else if (focusCol === 1) { playStream(true); } // Launch Fullscreen Video
           break;
 
-        case 13: // ENTER
+        case 13: // ENTER / OK
           if (focusCol === -1) { switchSection(tabs[tabIdx]); focusCol = 0; }
           else if (focusCol === 0) { focusCol = 1; loadItems(catIdx); }
-          else if (focusCol === 1) { playStream(true); } // Launch Fullscreen Player
+          else if (focusCol === 1) { playStream(true); } // Launch Fullscreen Video
           break;
       }
     });
