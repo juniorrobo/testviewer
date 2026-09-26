@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VIDAA Smart TV IPTV Player</title>
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <title>VIDAA Ultra IPTV Player</title>
+  <!-- Load HLS.js library for demuxing live streams on Smart TV browsers -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
   <style>
     :root {
       --bg: #090c10;
@@ -17,6 +18,7 @@
       --text-dim: #94a3b8;
       --border: #232d3f;
       --danger: #ef4444;
+      --success: #10b981;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
@@ -29,25 +31,26 @@
       display: flex; flex-direction: column;
     }
 
-    /* Top Bar Header */
+    /* Top Navigation Bar */
     #header {
-      height: 54px;
+      height: 56px;
       background: #0d111a;
       border-bottom: 1px solid var(--border);
       display: flex; align-items: center; justify-content: space-between;
       padding: 0 20px;
+      z-index: 20;
     }
     .brand { font-size: 18px; font-weight: 800; color: #fff; letter-spacing: 0.5px; }
     .brand span { color: var(--accent-bright); }
 
-    .nav-tabs { display: flex; gap: 6px; background: #05070a; padding: 3px; border-radius: 8px; border: 1px solid var(--border); }
-    .tab { padding: 6px 14px; font-size: 12px; font-weight: 700; color: var(--text-dim); border-radius: 6px; cursor: pointer; }
+    .nav-tabs { display: flex; gap: 8px; background: #05070a; padding: 4px; border-radius: 8px; border: 1px solid var(--border); }
+    .tab { padding: 6px 16px; font-size: 12px; font-weight: 700; color: var(--text-dim); border-radius: 6px; cursor: pointer; transition: all 0.2s; }
     .tab.active { background: var(--accent); color: #fff; }
 
-    .header-info { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text-dim); }
+    .header-info { display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--text-dim); }
 
-    /* Main Dashboard */
-    #dashboard { flex: 1; display: flex; height: calc(100vh - 54px); }
+    /* Dashboard Grid Layout */
+    #dashboard { flex: 1; display: flex; height: calc(100vh - 56px); }
 
     #col-cats { width: 280px; background: var(--panel-bg); border-right: 1px solid var(--border); overflow-y: auto; list-style: none; }
     #col-items { width: 380px; background: var(--card-bg); border-right: 1px solid var(--border); overflow-y: auto; list-style: none; }
@@ -59,21 +62,44 @@
       display: flex; align-items: center; gap: 12px;
       cursor: pointer; color: var(--text-dim); font-size: 13px;
     }
-    .list-item img { width: 28px; height: 28px; object-fit: contain; border-radius: 4px; background: #000; }
+    .list-item img { width: 32px; height: 32px; object-fit: contain; border-radius: 4px; background: #05070a; }
     .list-item .title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    .focused { background-color: var(--accent) !important; color: #fff !important; outline: 2px solid #60a5fa; z-index: 10; }
+    /* D-Pad Focus Rings for TV Navigation */
+    .focused {
+      background-color: var(--accent) !important;
+      color: #fff !important;
+      outline: 3px solid #60a5fa !important;
+      outline-offset: -3px;
+      z-index: 10;
+    }
     .selected { background-color: var(--card-hover); color: #fff; font-weight: 600; }
 
-    /* Inline Preview */
+    /* Preview Player & Status Dashboard */
     #preview-player-box { flex: 1; position: relative; background: #000; display: flex; align-items: center; justify-content: center; }
     #preview-video { width: 100%; height: 100%; object-fit: contain; }
 
-    #meta-panel { height: 100px; background: #0a0e17; border-top: 1px solid var(--border); padding: 16px; display: flex; flex-direction: column; justify-content: center; }
-    #meta-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
-    #meta-sub { font-size: 12px; color: var(--text-dim); }
+    #video-loader {
+      position: absolute; display: none; flex-direction: column; align-items: center; justify-content: center;
+      gap: 10px; background: rgba(0,0,0,0.75); padding: 20px; border-radius: 12px; border: 1px solid var(--border);
+    }
+    .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent-bright); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Fullscreen Player Overlay */
+    #meta-panel {
+      height: 120px; background: #0a0e17; border-top: 1px solid var(--border);
+      padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .meta-info { display: flex; flex-direction: column; gap: 4px; }
+    #meta-title { font-size: 18px; font-weight: 800; color: #fff; }
+    #meta-sub { font-size: 13px; color: var(--text-dim); }
+    .badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; text-transform: uppercase; display: inline-block; width: fit-content; margin-top: 4px; }
+    .badge-live { background: var(--danger); color: #fff; }
+    .badge-vod { background: var(--accent); color: #fff; }
+
+    .action-btns { display: flex; gap: 10px; }
+
+    /* Fullscreen Dedicated Player Overlay */
     #player-overlay {
       position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
       background: #000; z-index: 999; display: none; flex-direction: column;
@@ -81,26 +107,32 @@
     #full-video { width: 100%; height: 100%; object-fit: contain; }
     #player-osd {
       position: absolute; bottom: 0; left: 0; right: 0;
-      background: linear-gradient(transparent, rgba(0,0,0,0.9));
+      background: linear-gradient(transparent, rgba(0,0,0,0.95));
       padding: 30px; display: flex; justify-content: space-between; align-items: flex-end;
+      pointer-events: none;
     }
-    .osd-title { font-size: 24px; font-weight: 800; color: #fff; }
+    .osd-title { font-size: 26px; font-weight: 800; color: #fff; }
     .osd-status { font-size: 14px; color: var(--accent-bright); font-weight: 700; margin-top: 4px; }
-    .osd-hint { font-size: 12px; color: var(--text-dim); }
+    .osd-hint { font-size: 13px; color: var(--text-dim); }
 
-    /* Settings Modal */
+    /* Modals for Settings & Series Browsing */
     .modal { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 1000; display: none; align-items: center; justify-content: center; }
-    .dialog { background: #18202c; padding: 24px; border-radius: 10px; width: 400px; border: 1px solid var(--border); }
-    .dialog h3 { margin-bottom: 12px; }
-    .dialog input { width: 100%; padding: 10px; margin-bottom: 12px; background: #0a0d14; border: 1px solid var(--border); color: #fff; border-radius: 6px; }
-    .dialog-btns { display: flex; justify-content: flex-end; gap: 8px; }
-    .btn { padding: 8px 14px; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 12px; }
+    .dialog { background: #18202c; padding: 24px; border-radius: 12px; width: 480px; border: 1px solid var(--border); max-height: 85vh; display: flex; flex-direction: column; }
+    .dialog h3 { margin-bottom: 14px; font-size: 18px; }
+    .dialog input { width: 100%; padding: 12px; margin-bottom: 12px; background: #0a0d14; border: 1px solid var(--border); color: #fff; border-radius: 6px; font-size: 14px; }
+    .dialog-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+    .btn { padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 13px; }
     .btn-blue { background: var(--accent); color: #fff; }
     .btn-gray { background: #334155; color: #fff; }
+
+    #episodes-container { overflow-y: auto; flex: 1; margin: 10px 0; display: flex; flex-direction: column; gap: 6px; }
+    .ep-item { padding: 10px; background: #0d121d; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; font-size: 13px; }
+    .ep-item:hover { background: var(--accent); }
   </style>
 </head>
 <body>
 
+  <!-- Top Header Navigation -->
   <div id="header">
     <div class="brand">VIDAA<span>PLAYER</span></div>
     <div class="nav-tabs">
@@ -110,11 +142,12 @@
       <div class="tab" id="tab-radio" onclick="switchSection('radio')">RADIO</div>
     </div>
     <div class="header-info">
-      <button class="btn btn-gray" onclick="openLogin()">Server Settings</button>
+      <button class="btn btn-gray" id="btn-settings" onclick="openLogin()">Server Settings</button>
       <div id="clock">--:--</div>
     </div>
   </div>
 
+  <!-- Content Dashboard -->
   <div id="dashboard">
     <ul id="col-cats"></ul>
     <ul id="col-items"></ul>
@@ -122,51 +155,75 @@
     <div id="col-preview">
       <div id="preview-player-box">
         <video id="preview-video" autoplay muted playsinline></video>
+        <div id="video-loader">
+          <div class="spinner"></div>
+          <span id="loader-text" style="font-size: 12px; color: var(--text-dim);">Connecting stream...</span>
+        </div>
       </div>
+
       <div id="meta-panel">
-        <div id="meta-title">Select Content</div>
-        <div id="meta-sub">Press OK or RIGHT to open Fullscreen Player</div>
+        <div class="meta-info">
+          <div id="meta-title">Select a Channel or Movie</div>
+          <div id="meta-sub">Press OK / ENTER or RIGHT to expand</div>
+          <div id="meta-badge" class="badge badge-live">READY</div>
+        </div>
+        <div class="action-btns">
+          <button class="btn btn-gray" id="btn-retry" onclick="retryStream()">Retry Stream</button>
+          <button class="btn btn-blue" id="btn-fullscreen" onclick="openFullscreen()">Fullscreen [OK]</button>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Dedicated Fullscreen Player Overlay -->
+  <!-- Dedicated Fullscreen Player Overlay Modal -->
   <div id="player-overlay">
     <video id="full-video" autoplay playsinline></video>
     <div id="player-osd">
       <div>
         <div class="osd-title" id="full-title">Channel Name</div>
-        <div class="osd-status" id="full-status">CONNECTING STREAM...</div>
+        <div class="osd-status" id="full-status">CONNECTING...</div>
       </div>
-      <div class="osd-hint">Press [BACK / ESC] to Exit Fullscreen</div>
+      <div class="osd-hint">Press [BACK / ESC] to exit Fullscreen</div>
     </div>
   </div>
 
-  <!-- Settings Dialog -->
+  <!-- Server Settings Modal -->
   <div id="login-modal" class="modal">
     <div class="dialog">
-      <h3>Xtream Credentials</h3>
+      <h3>Xtream IPTV Credentials</h3>
       <input type="text" id="cfg-server" placeholder="http://domain.com:8080" />
       <input type="text" id="cfg-user" placeholder="Username" />
       <input type="password" id="cfg-pass" placeholder="Password" />
       <div class="dialog-btns">
         <button class="btn btn-gray" onclick="closeLogin()">Cancel</button>
-        <button class="btn btn-blue" onclick="saveLogin()">Connect</button>
+        <button class="btn btn-blue" onclick="saveLogin()">Connect Server</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Series Seasons & Episode Browser Modal -->
+  <div id="series-modal" class="modal">
+    <div class="dialog">
+      <h3 id="series-modal-title">Series Episodes</h3>
+      <div id="episodes-container"></div>
+      <div class="dialog-btns">
+        <button class="btn btn-gray" onclick="closeSeriesModal()">Close</button>
       </div>
     </div>
   </div>
 
   <script>
     let serverUrl = '', username = '', password = '';
-    let currentSection = 'live'; // live, vod, series, radio
+    let currentSection = 'live'; // 'live', 'vod', 'series', 'radio'
     let categoryList = [];
     let currentItemList = [];
 
-    // Focus state: -1 = Tabs, 0 = Categories, 1 = Items, 2 = Fullscreen
+    // Navigation Focus Matrix: -1 = Tabs/Action Bar, 0 = Categories, 1 = Content Items, 2 = Fullscreen Player, 3 = Series Modal
     let focusCol = 0;
     let tabIdx = 0;
     let catIdx = 0;
     let itemIdx = 0;
+    let actionIdx = 0;
 
     const tabs = ['live', 'vod', 'series', 'radio'];
     const pVideo = document.getElementById('preview-video');
@@ -174,6 +231,7 @@
     let previewHls = null;
     let fullHls = null;
 
+    // Clock
     setInterval(() => {
       document.getElementById('clock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }, 1000);
@@ -214,18 +272,18 @@
       loadCategories();
     }
 
+    // CORS & HTTPS Fallback Proxy Fetcher
     async function fetchFast(url) {
       try {
         const res = await fetch(url);
         if (res.ok) return await res.json();
       } catch (e) {
-        // Proxy Fallback for API calls
         try {
           const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
           const res = await fetch(proxyUrl);
           if (res.ok) return await res.json();
         } catch (err) {
-          console.warn("Fetch failed:", url);
+          console.error("API Fetch Error:", url, err);
         }
       }
       return null;
@@ -242,7 +300,7 @@
     }
 
     async function loadCategories() {
-      document.getElementById('col-cats').innerHTML = '<li class="list-item"><span class="title">Loading...</span></li>';
+      document.getElementById('col-cats').innerHTML = '<li class="list-item"><span class="title">Loading Categories...</span></li>';
       document.getElementById('col-items').innerHTML = '';
 
       let action = 'get_live_categories';
@@ -259,6 +317,8 @@
         categoryList = data;
         renderCategories();
         if (categoryList.length > 0) loadItems(0);
+      } else {
+        document.getElementById('col-cats').innerHTML = '<li class="list-item"><span class="title">Failed to load</span></li>';
       }
     }
 
@@ -281,7 +341,7 @@
       const cat = categoryList[cIdx];
       if (!cat) return;
 
-      document.getElementById('col-items').innerHTML = '<li class="list-item"><span class="title">Loading...</span></li>';
+      document.getElementById('col-items').innerHTML = '<li class="list-item"><span class="title">Loading items...</span></li>';
 
       let action = 'get_live_streams';
       if (currentSection === 'vod') action = 'get_vod_streams';
@@ -296,7 +356,7 @@
         renderItems();
       } else {
         currentItemList = [];
-        document.getElementById('col-items').innerHTML = '<li class="list-item"><span class="title">Empty category</span></li>';
+        document.getElementById('col-items').innerHTML = '<li class="list-item"><span class="title">No items found</span></li>';
       }
     }
 
@@ -315,29 +375,48 @@
           ${icon ? `<img src="${icon}" onerror="this.style.display='none'"/>` : ''}
           <span class="title">${name}</span>
         `;
-        li.onclick = () => { itemIdx = idx; playStream(false); };
+        li.onclick = () => { itemIdx = idx; handleItemSelect(false); };
         container.appendChild(li);
       });
       updateFocus();
     }
 
-    // Dynamic Stream Loader Engine with Mixed Content / Proxy Handling
-    function playStream(fullScreen = false) {
+    function showLoader(show, text = 'Connecting stream...') {
+      const loader = document.getElementById('video-loader');
+      document.getElementById('loader-text').textContent = text;
+      loader.style.display = show ? 'flex' : 'none';
+    }
+
+    function handleItemSelect(fullScreen = false) {
       const item = currentItemList[itemIdx];
       if (!item) return;
 
+      if (currentSection === 'series') {
+        loadSeriesEpisodes(item);
+      } else {
+        playStream(item, fullScreen);
+      }
+    }
+
+    function playStream(item, fullScreen = false) {
       const title = item.name || item.title;
       document.getElementById('meta-title').textContent = title;
-      document.getElementById('meta-sub').textContent = `Stream ID: ${item.stream_id || item.series_id}`;
+      document.getElementById('meta-sub').textContent = `Stream ID: ${item.stream_id || item.id || 'N/A'}`;
+      document.getElementById('meta-badge').textContent = currentSection.toUpperCase();
 
-      let m3u8Url = '', tsUrl = '', vodUrl = '';
+      let streamUrl = '';
+      let fallbackTsUrl = '';
 
       if (currentSection === 'vod') {
         const ext = item.container_extension || 'mp4';
-        vodUrl = `${serverUrl}/movie/${encodeURIComponent(username)}/${encodeURIComponent(password)}/${item.stream_id}.${ext}`;
+        streamUrl = `${serverUrl}/movie/${encodeURIComponent(username)}/${encodeURIComponent(password)}/${item.stream_id}.${ext}`;
+      } else if (item.is_episode) {
+        const ext = item.container_extension || 'mp4';
+        streamUrl = `${serverUrl}/series/${encodeURIComponent(username)}/${encodeURIComponent(password)}/${item.id}.${ext}`;
       } else {
-        m3u8Url = `${serverUrl}/live/${encodeURIComponent(username)}/${encodeURIComponent(password)}/${item.stream_id}.m3u8`;
-        tsUrl = `${serverUrl}/live/${encodeURIComponent(username)}/${encodeURIComponent(password)}/${item.stream_id}.ts`;
+        // Live IPTV: Generate both HLS m3u8 and fallback direct MPEG-TS URLs
+        streamUrl = `${serverUrl}/live/${encodeURIComponent(username)}/${encodeURIComponent(password)}/${item.stream_id}.m3u8`;
+        fallbackTsUrl = `${serverUrl}/live/${encodeURIComponent(username)}/${encodeURIComponent(password)}/${item.stream_id}.ts`;
       }
 
       const targetVideo = fullScreen ? fVideo : pVideo;
@@ -346,32 +425,39 @@
       if (fullScreen) {
         focusCol = 2;
         document.getElementById('full-title').textContent = title;
-        document.getElementById('full-status').textContent = 'CONNECTING STREAM...';
+        document.getElementById('full-status').textContent = 'BUFFERING STREAM...';
         document.getElementById('player-overlay').style.display = 'flex';
+      } else {
+        showLoader(true, 'Connecting stream...');
       }
 
-      if (activeHls) activeHls.destroy();
+      // Cleanup existing HLS instance
+      if (activeHls) { activeHls.destroy(); activeHls = null; }
 
-      if (currentSection === 'vod') {
-        targetVideo.src = vodUrl;
-        targetVideo.play().catch(e => console.log("VOD playback error:", e));
+      // Direct VOD MP4/MKV Playback Engine
+      if (currentSection === 'vod' || item.is_episode) {
+        targetVideo.src = streamUrl;
+        targetVideo.play().then(() => showLoader(false)).catch(e => {
+          console.warn("Direct VOD Playback Error:", e);
+          showLoader(false);
+        });
         return;
       }
 
-      // HLS setup with automatic proxying for HTTP chunks on HTTPS page
+      // Live Stream Playback Engine (HLS.js Demuxing with Native MPEG-TS Fallback)
       if (Hls.isSupported()) {
         activeHls = new Hls({
           enableWorker: true,
           lowLatencyMode: true,
           xhrSetup: function (xhr, url) {
-            // Route http segments via proxy if current page is https
+            // Handle Mixed Content (HTTP streams on HTTPS deployment)
             if (window.location.protocol === 'https:' && url.startsWith('http:')) {
               xhr.open('GET', `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, true);
             }
           }
         });
 
-        let playSource = m3u8Url;
+        let playSource = streamUrl;
         if (window.location.protocol === 'https:' && playSource.startsWith('http:')) {
           playSource = `https://api.allorigins.win/raw?url=${encodeURIComponent(playSource)}`;
         }
@@ -380,28 +466,40 @@
         activeHls.attachMedia(targetVideo);
 
         activeHls.on(Hls.Events.MANIFEST_PARSED, () => {
+          showLoader(false);
           if (fullScreen) document.getElementById('full-status').textContent = 'LIVE PLAYBACK';
-          targetVideo.play().catch(e => console.log("HLS play error:", e));
+          targetVideo.play().catch(e => console.log("Play error:", e));
         });
 
         activeHls.on(Hls.Events.ERROR, (event, data) => {
           if (data.fatal) {
-            console.warn("HLS fatal error. Attempting TS stream fallback...");
+            console.warn("HLS fatal error. Triggering fallback to direct TS stream...");
             if (activeHls) activeHls.destroy();
-            targetVideo.src = tsUrl;
-            targetVideo.play().catch(err => console.log("TS Direct Play error:", err));
+            targetVideo.src = fallbackTsUrl;
+            targetVideo.play().then(() => showLoader(false)).catch(err => {
+              showLoader(false);
+              if (fullScreen) document.getElementById('full-status').textContent = 'PLAYBACK ERROR';
+            });
           }
         });
 
         if (fullScreen) fullHls = activeHls; else previewHls = activeHls;
 
       } else if (targetVideo.canPlayType('application/vnd.apple.mpegurl')) {
-        targetVideo.src = m3u8Url;
-        targetVideo.play();
+        targetVideo.src = streamUrl;
+        targetVideo.play().then(() => showLoader(false));
       } else {
-        targetVideo.src = tsUrl;
-        targetVideo.play();
+        targetVideo.src = fallbackTsUrl;
+        targetVideo.play().then(() => showLoader(false));
       }
+    }
+
+    function retryStream() {
+      if (currentItemList[itemIdx]) playStream(currentItemList[itemIdx], false);
+    }
+
+    function openFullscreen() {
+      if (currentItemList[itemIdx]) playStream(currentItemList[itemIdx], true);
     }
 
     function closeFullscreen() {
@@ -413,12 +511,46 @@
       updateFocus();
     }
 
+    async function loadSeriesEpisodes(seriesItem) {
+      document.getElementById('series-modal-title').textContent = seriesItem.name || seriesItem.title;
+      const container = document.getElementById('episodes-container');
+      container.innerHTML = '<div style="color:var(--text-dim); text-align:center; padding:20px;">Loading episodes...</div>';
+      document.getElementById('series-modal').style.display = 'flex';
+
+      const url = `${serverUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_series_info&series_id=${seriesItem.series_id}`;
+      const data = await fetchFast(url);
+
+      if (data && data.episodes) {
+        container.innerHTML = '';
+        Object.keys(data.episodes).forEach(seasonNum => {
+          data.episodes[seasonNum].forEach(ep => {
+            const div = document.createElement('div');
+            div.className = 'ep-item';
+            div.innerHTML = `<span>S${seasonNum} E${ep.episode_num} - ${ep.title}</span><span style="color:var(--accent-bright)">PLAY</span>`;
+            div.onclick = () => {
+              closeSeriesModal();
+              playStream({ id: ep.id, title: ep.title, container_extension: ep.container_extension, is_episode: true }, true);
+            };
+            container.appendChild(div);
+          });
+        });
+      } else {
+        container.innerHTML = '<div style="color:var(--danger); text-align:center; padding:20px;">No episodes found</div>';
+      }
+    }
+
+    function closeSeriesModal() {
+      document.getElementById('series-modal').style.display = 'none';
+    }
+
     function updateFocus() {
       document.querySelectorAll('.focused').forEach(e => e.classList.remove('focused'));
 
       if (focusCol === -1) {
-        const t = document.getElementById(`tab-${tabs[tabIdx]}`);
-        if (t) t.classList.add('focused');
+        if (actionIdx === 0) document.getElementById(`tab-${tabs[tabIdx]}`)?.classList.add('focused');
+        else if (actionIdx === 1) document.getElementById('btn-settings')?.classList.add('focused');
+        else if (actionIdx === 2) document.getElementById('btn-retry')?.classList.add('focused');
+        else if (actionIdx === 3) document.getElementById('btn-fullscreen')?.classList.add('focused');
       } else if (focusCol === 0) {
         const c = document.getElementById(`cat-${catIdx}`);
         if (c) { c.classList.add('focused'); c.scrollIntoView({ block: 'nearest' }); }
@@ -428,14 +560,19 @@
       }
     }
 
-    // VIDAA TV D-Pad Remote Navigation
     window.addEventListener('keydown', (e) => {
+      // Ignore background TV keys if modals are open
       if (document.getElementById('login-modal').style.display === 'flex') return;
 
-      if (focusCol === 2) { // Fullscreen Player Controls
-        if (e.keyCode === 27 || e.keyCode === 10009 || e.keyCode === 8) { // BACK / ESC
+      if (focusCol === 2) { // Fullscreen Overlay Mode
+        if (e.keyCode === 27 || e.keyCode === 10009 || e.keyCode === 8) { // ESC / BACK
           closeFullscreen();
         }
+        return;
+      }
+
+      if (document.getElementById('series-modal').style.display === 'flex') {
+        if (e.keyCode === 27 || e.keyCode === 10009 || e.keyCode === 8) closeSeriesModal();
         return;
       }
 
@@ -443,7 +580,8 @@
         case 38: // UP
           if (focusCol === 0 && catIdx > 0) { catIdx--; updateFocus(); }
           else if (focusCol === 1 && itemIdx > 0) { itemIdx--; updateFocus(); }
-          else if (focusCol === 0 && catIdx === 0) { focusCol = -1; updateFocus(); }
+          else if (focusCol === 0 && catIdx === 0) { focusCol = -1; actionIdx = 0; updateFocus(); }
+          else if (focusCol === 1 && itemIdx === 0) { focusCol = -1; actionIdx = 2; updateFocus(); }
           break;
 
         case 40: // DOWN
@@ -453,20 +591,27 @@
           break;
 
         case 37: // LEFT
-          if (focusCol === -1 && tabIdx > 0) { switchSection(tabs[tabIdx - 1]); }
+          if (focusCol === -1 && actionIdx > 0) { actionIdx--; updateFocus(); }
           else if (focusCol === 1) { focusCol = 0; updateFocus(); }
           break;
 
         case 39: // RIGHT
-          if (focusCol === -1 && tabIdx < tabs.length - 1) { switchSection(tabs[tabIdx + 1]); }
+          if (focusCol === -1 && actionIdx < 3) { actionIdx++; updateFocus(); }
           else if (focusCol === 0) { focusCol = 1; loadItems(catIdx); }
-          else if (focusCol === 1) { playStream(true); } // Launch Fullscreen Video
+          else if (focusCol === 1) { handleItemSelect(true); } // Double OK / Right launches Fullscreen
           break;
 
         case 13: // ENTER / OK
-          if (focusCol === -1) { switchSection(tabs[tabIdx]); focusCol = 0; }
-          else if (focusCol === 0) { focusCol = 1; loadItems(catIdx); }
-          else if (focusCol === 1) { playStream(true); } // Launch Fullscreen Video
+          if (focusCol === -1) {
+            if (actionIdx === 0) switchSection(tabs[tabIdx]);
+            else if (actionIdx === 1) openLogin();
+            else if (actionIdx === 2) retryStream();
+            else if (actionIdx === 3) openFullscreen();
+          } else if (focusCol === 0) {
+            focusCol = 1; loadItems(catIdx);
+          } else if (focusCol === 1) {
+            handleItemSelect(true);
+          }
           break;
       }
     });
